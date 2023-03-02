@@ -45,11 +45,14 @@ def measure(
         pos_outcome_indicator: str = '1',
         debug: bool = False,
         extra_display_cols: list[tuple[str, str]] = None,
+        suppress_output: bool = False
 ):
     input_df: pd.DataFrame = (pd.read_csv(inp, dtype={binary_outcome_column: str})
                               if isinstance(inp, str) else inp)
     if not pd.api.types.is_string_dtype(input_df[binary_outcome_column]):
         input_df[binary_outcome_column] = input_df[binary_outcome_column].astype(str)
+    if not isinstance(pos_outcome_indicator, str):
+        pos_outcome_indicator = str(pos_outcome_indicator)
     sample_weights = None if sample_weights_column is None else input_df[sample_weights_column]
     y_true = input_df[binary_outcome_column] == pos_outcome_indicator.strip()
     best_threshold = None
@@ -125,7 +128,12 @@ def measure(
         protected_class_metrics = calculate_class_metrics(y_true_protected, y_pred_protected, protected_df,
                                                           class_)
         metrics[k_][class_] = protected_class_metrics
-    display_metrics(metrics=metrics, debug=debug, extra_display_cols=extra_display_cols)
+    return handle_metrics(
+        metrics=metrics,
+        debug=debug,
+        extra_display_cols=extra_display_cols,
+        suppress_output=suppress_output
+    )
 
 
 def calculate_class_metrics(y_true, y_pred, df, metrics_class):
@@ -172,11 +180,12 @@ def format_metrics(metrics: dict) -> dict:
     return formatted
 
 
-def display_metrics(
+def handle_metrics(
         metrics: dict,
         debug=False,
         tablefmt="github",
-        extra_display_cols: list[tuple[str, str]] = None
+        extra_display_cols: list[tuple[str, str]] = None,
+        suppress_output: bool = False
 ):
     """
     By default, print to stdout. Optionally save output to file.
@@ -190,11 +199,14 @@ def display_metrics(
     formatted = format_metrics(metrics)
     extra_display_cols_names = [] if not extra_display_cols else [col for col, _ in extra_display_cols]
     extra_display_cols_vals = [] if not extra_display_cols else [val for _, val in extra_display_cols]
+    top = dict()
     if debug:
         print("Model-level metrics:")
-        for k, v in sorted(list(chain(zip(extra_display_cols_names, extra_display_cols_vals), formatted.items()))):
-            if k.endswith('_class_metrics'):
-                continue
+    for k, v in sorted(list(chain(zip(extra_display_cols_names, extra_display_cols_vals), formatted.items()))):
+        if k.endswith('_class_metrics'):
+            continue
+        top[k] = formatted.get(k, v)
+        if debug:
             print(f'{k}: {v}')
     columns = list()
     rows = list()
@@ -217,16 +229,17 @@ def display_metrics(
                     + [class_type, protected_class]
                     + [v for k, v in protected_metrics.items()])
             )
-
-    print('')
-    print(
-        tabulate(
-            rows,
-            headers=columns,
-            tablefmt=tablefmt
+    if not suppress_output:
+        print('')
+        print(
+            tabulate(
+                rows,
+                headers=columns,
+                tablefmt=tablefmt
+            )
         )
-    )
-    print("\n\n")
+        print("\n\n")
+    return pd.DataFrame(rows, columns=columns), top
 
 
 if __name__ == '__main__':

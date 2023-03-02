@@ -1,6 +1,7 @@
 import argparse
 import itertools
 import logging
+from typing import Union
 
 import fairlearn.metrics
 import numpy as np
@@ -137,8 +138,8 @@ class FairModel(object):
         return self.optimizer._pmf_predict(x, sensitive_features=x[self.sensitive_feature_names])[:, 1]
 
 
-def main(
-        input_filename: str,
+def mitigate(
+        inp: Union[str, pd.DataFrame],
         binary_outcome_column: str,
         protected_classes: list[str],
         sample_weights_col: str = None,
@@ -150,9 +151,15 @@ def main(
         use_pos_weights: bool = True,
         enable_categorical: bool = True,
         do_hyperparameter_optimization: bool = False,
-        debug: bool = False
+        debug: bool = False,
+        suppress_output: bool = False
 ):
-    input_df = pd.read_csv(input_filename, dtype={binary_outcome_column: str})
+    input_df: pd.DataFrame = (pd.read_csv(inp, dtype={binary_outcome_column: str})
+                              if isinstance(inp, str) else inp)
+    if not pd.api.types.is_string_dtype(input_df[binary_outcome_column]):
+        input_df[binary_outcome_column] = input_df[binary_outcome_column].astype(str)
+    if not isinstance(pos_outcome_indicator, str):
+        pos_outcome_indicator = str(pos_outcome_indicator)
     col_translate = {ord('['): '===', ord(']'): '+++', ord('<'): '---'}
     remap_cols = {k: v for k, v in {col: col.translate(col_translate) for col in input_df.columns}.items() if k != v}
     demap_cols = {v: k for k, v in remap_cols.items()}
@@ -198,9 +205,10 @@ def main(
         base_predictions=fm.base_model.predict(x_test)
     )
 
-    print('')
-    print(Bcolors.WARNING + 'Base model bias metric prior to mitigation strategy' + Bcolors.ENDC)
-    measure(
+    if not suppress_output:
+        print('')
+        print(Bcolors.WARNING + 'Base model bias metric prior to mitigation strategy' + Bcolors.ENDC)
+    base_demo, base_meta = measure(
         inp=measure_df,
         binary_outcome_column=binary_outcome_column,
         protected_classes=protected_classes,
@@ -208,11 +216,13 @@ def main(
         pos_outcome_indicator="True",
         sample_weights_column=sample_weights_col,
         extra_display_cols=[('model', 'base')],
-        y_pred_column='base_predictions'
+        y_pred_column='base_predictions',
+        suppress_output=suppress_output
     )
 
-    print(Bcolors.OKGREEN + 'Bias-optimized model metrics' + Bcolors.ENDC)
-    measure(
+    if not suppress_output:
+        print(Bcolors.OKGREEN + 'Bias-optimized model metrics' + Bcolors.ENDC)
+    fair_demo, fair_model = measure(
         inp=measure_df,
         binary_outcome_column=binary_outcome_column,
         protected_classes=protected_classes,
@@ -220,8 +230,11 @@ def main(
         pos_outcome_indicator="True",
         sample_weights_column=sample_weights_col,
         extra_display_cols=[('model', 'fair')],
-        y_pred_column='fair_predictions'
+        y_pred_column='fair_predictions',
+        suppress_output=suppress_output
     )
+    def plot():
+        pass
 
     if debug:
         for model_name, model in [("base_model", fm.base_model), ("fair_model", fm)]:
@@ -349,8 +362,8 @@ if __name__ == '__main__':
     if args.debug:
         logging.basicConfig(level="DEBUG")
 
-    main(
-        input_filename=args.input_file,
+    mitigate(
+        inp=args.input_file,
         test_filename=args.test_file,
         protected_classes=protected_classes,
         reference_classes=reference_classes,
