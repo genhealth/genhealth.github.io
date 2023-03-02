@@ -90,7 +90,6 @@ python mitigate_disparity.py \
     --reference-classes=sex_Male,race_Caucasian \
     --input-file=demo/diabetes.csv \
     --pos-outcome-indicator=1 \
-    --reference-classes=race_Caucasian,gender_Male
 ```
 
 Expected output:
