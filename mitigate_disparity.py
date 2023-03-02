@@ -294,8 +294,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--do-demo", action="store_true",
                         help="Perform demo. Performs optimization on embedded diabetes file.")
-    parser.add_argument("--input-filename", required=True, type=str, help="Input filename")
-    parser.add_argument("--test-filename", type=str, help="Test input filename", default=None)
+    parser.add_argument("--input-file", required=True, type=str, help="Input filename")
+    parser.add_argument("--test-file", type=str, help="Test input filename", default=None)
     parser.add_argument(
         "--protected-classes",
         required=True,
@@ -304,7 +304,6 @@ if __name__ == '__main__':
     )
     parser.add_argument(
         "--reference-classes",
-        required=True,
         type=str,
         help="Comma-separated list of reference classes."
     )
@@ -359,8 +358,8 @@ if __name__ == '__main__':
         logging.basicConfig(level="DEBUG")
 
     main(
-        input_filename=args.input_filename,
-        test_filename=args.test_filename,
+        input_filename=args.input_filen,
+        test_filename=args.test_file,
         protected_classes=protected_classes,
         reference_classes=reference_classes,
         binary_outcome_column=args.binary_outcome_column,

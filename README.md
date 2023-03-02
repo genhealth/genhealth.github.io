@@ -86,16 +86,13 @@ python mitigate_disparity.py --do-demo
 
 To run the demo script with a custom file, use the following command:
 ```
-python mitigate_disparity.py \ 
-    --input-filename=./demo/my_custom_file_train.csv \
-    --test-filename=/demo/my_custom_file_test.csv
-    --sensitive-classes=race_AfricanAmerican,race_Hispanic \
-    --reference-classes=race_White,sex_M \
-    --binary-outcome-column=favorable_outcome \
-    --sample-weights=sample_weights \
-    --do-hyperparameter-optimization=True \
-    --train-test-split=0.8 \
-    --debug=False
+python mitigate_disparity.py \
+    --binary-outcome-col=readmitted \
+    --protected-classes=race_AfricanAmerican,race_Asian,race_Hispanic,gender_Female 
+    --reference-classes=sex_Male,race_Caucasian \
+    --input-file=demo/diabetes_with_predict_probability.csv \
+    --pos-outcome-indicator=1 \
+    --reference-classes=race_Caucasian,gender_Male
 ```
 
 ### Background and Script Design
