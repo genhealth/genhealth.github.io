@@ -51,13 +51,27 @@ The script can be run with the following command line arguments:
 
 Example:
 ```
-python mitigate_disparity.py \
+python measure_disparity.py  \
+    --probability-col=predict_probability \
     --binary-outcome-col=readmitted \
-    --protected-classes=race_AfricanAmerican,race_Asian,race_Hispanic,gender_Female 
+    --protected-classes=race_AfricanAmerican,race_Asian,race_Hispanic,gender_Female \
     --reference-classes=sex_Male,race_Caucasian \
     --input-file=demo/diabetes_with_predict_probability.csv \
     --pos-outcome-indicator=1 \
     --reference-classes=race_Caucasian,gender_Male
+```
+
+Expected Output:
+```
+| protected_or_reference   | class                |   num_samples |   equal_odds_difference |   equal_odds_ratio |   demographic_parity_difference |   demographic_parity_ratio |
+|--------------------------|----------------------|---------------|-------------------------|--------------------|---------------------------------|----------------------------|
+| protected                | race_AfricanAmerican |         19210 |                   0.044 |              0.923 |                           0.034 |                      0.934 |
+| protected                | race_Asian           |           641 |                   0.107 |              0.705 |                           0.128 |                      0.738 |
+| protected                | race_Hispanic        |          2037 |                   0.052 |              0.857 |                           0.039 |                      0.919 |
+| protected                | gender_Female        |         54708 |                   0.005 |              0.993 |                           0.006 |                      0.987 |
+| reference                | race_Caucasian       |         76099 |                   0.025 |              0.961 |                           0.001 |                      0.998 |
+| reference                | gender_Male          |         47055 |                   0.001 |              0.997 |                           0.007 |                      0.986 |
+
 ```
 
 ### Mitigate Disparity
@@ -79,20 +93,28 @@ The `mitigate_disparity.py` script by default also expects a CSV file as input. 
 | random-state                   | Seed for initializing the random state. Default to 0                                                                                     | Integer                  | 2                                  |
 | debug                          | Enable additional debug logging                                                                                                          | True/False               | True                               |
 
-To run the demo script, use the following command:
-```
-python mitigate_disparity.py --do-demo
-```
 
 To run the demo script with a custom file, use the following command:
 ```
 python mitigate_disparity.py \
     --binary-outcome-col=readmitted \
-    --protected-classes=race_AfricanAmerican,race_Asian,race_Hispanic,gender_Female 
+    --protected-classes=race_AfricanAmerican,race_Asian,race_Hispanic,gender_Female \
     --reference-classes=sex_Male,race_Caucasian \
-    --input-file=demo/diabetes_with_predict_probability.csv \
+    --input-file=demo/diabetes.csv \
     --pos-outcome-indicator=1 \
     --reference-classes=race_Caucasian,gender_Male
+```
+
+Expected output:
+```
+| model   | protected_or_reference   | class                |   num_samples |   equal_odds_difference |   equal_odds_ratio |   demographic_parity_difference |   demographic_parity_ratio |
+|---------|--------------------------|----------------------|---------------|-------------------------|--------------------|---------------------------------|----------------------------|
+| fair    | protected                | race_AfricanAmerican |          3817 |                   0.017 |              0.962 |                           0.006 |                      0.99  |
+| fair    | protected                | race_Asian           |           142 |                   0.095 |              0.854 |                           0.09  |                      0.829 |
+| fair    | protected                | race_Hispanic        |           401 |                   0.002 |              0.996 |                           0.015 |                      0.971 |
+| fair    | protected                | gender_Female        |         10962 |                   0.031 |              0.953 |                           0.01  |                      0.981 |
+| fair    | reference                | race_Caucasian       |         15278 |                   0.018 |              0.97  |                           0.01  |                      0.98  |
+| fair    | reference                | gender_Male          |          9392 |                   0.028 |              0.958 |                           0.006 |                      0.988 |
 ```
 
 ### Background and Script Design
