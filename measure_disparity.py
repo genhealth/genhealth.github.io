@@ -236,7 +236,7 @@ if __name__ == '__main__':
     parser.add_argument("--binary-outcome-col", required=True, type=str,
                         help="Column containing binary outcome data on patient.")
     parser.add_argument("--probability-col", required=True, type=str, help="Probability outcome column.")
-    parser.add_argument("--sample-weights-col", required=True, type=str, help="Column sample weights.")
+    parser.add_argument("--sample-weights-col", type=str, help="Column sample weights.")
     parser.add_argument("--pos-outcome-indicator", default="1", type=str, help="Binary outcome column positive value.")
     parser.add_argument("--debug", action="store_true", default=False, help="Enable debug logging.")
     args = parser.parse_args()
@@ -256,5 +256,4 @@ if __name__ == '__main__':
         pos_outcome_indicator=args.pos_outcome_indicator,
         probability_column=args.probability_col,
         debug=args.debug
-
     )

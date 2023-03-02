@@ -124,38 +124,6 @@ class FairModel(object):
         except AssertionError:
             raise PredictBeforeFitError("You must run fit() before running predict()")
         return self.optimizer._pmf_predict(x, sensitive_features=x[self.sensitive_feature_names])[:, 1]
-        # return self.optimizer(x, sensitive_features=x[self.sensitive_feature_names], random_state=random_state)
-
-    def compute_metrics(self, x: pd.DataFrame, y: pd.Series, use_base_model=False):
-        predictions = self.predict(x) if not use_base_model else self.base_model.predict(x)
-        precision = precision_score(y, predictions)
-        accuracy = accuracy_score(y, predictions)
-        tpr = fairlearn.metrics.true_positive_rate(y, predictions)
-        tnr = fairlearn.metrics.true_negative_rate(y, predictions)
-        fpr = fairlearn.metrics.false_positive_rate(y, predictions)
-        fnr = fairlearn.metrics.false_negative_rate(y, predictions)
-        total_rows = x.shape[0]
-        total_rows_with_any_sensitive_class = sum(
-            x[protected_classes].any(axis='columns').apply(lambda v: 1 if v else 0)
-        )
-        equalized_odds_difference_any = fairlearn.metrics.equalized_odds_difference(
-            y,
-            predictions,
-            sensitive_features=x[protected_classes]
-        )
-        equal_odds_ratio_any = fairlearn.metrics.equalized_odds_ratio(
-            y,
-            predictions,
-            sensitive_features=x[protected_classes]
-        )
-        for column in protected_classes:
-            total = sum(x[column])
-            ratio = (total / total_rows)
-            equalized_odds_difference_for_class = fairlearn.metrics.equalized_odds_difference(
-                y,
-                predictions,
-                sensitive_features=x[column]
-            )
 
 
 def main(
@@ -218,7 +186,7 @@ def main(
         fair_predictions=fm.predict(x_test),
         base_predictions=fm.base_model.predict(x_test)
     )
-    base_measure = measure(
+    measure(
         inp=measure_df,
         binary_outcome_column=binary_outcome_column,
         protected_classes=protected_classes,
@@ -228,7 +196,7 @@ def main(
         extra_display_cols=[('model', 'base')],
         y_pred_column='base_predictions'
     )
-    fair_measure = measure(
+    measure(
         inp=measure_df,
         binary_outcome_column=binary_outcome_column,
         protected_classes=protected_classes,
@@ -238,17 +206,16 @@ def main(
         extra_display_cols=[('model', 'fair')],
         y_pred_column='fair_predictions'
     )
-    fm.compute_metrics(x, y)
 
-    for model_name, model in [("base_model", fm.base_model), ("fair_model", fm)]:
-        predictions_base = model.predict(x_test)
-        precision_base = precision_score(y_test, predictions_base)
-        accuracy_base = accuracy_score(y_test, predictions_base)
-        tpr_base = fairlearn.metrics.true_positive_rate(y_test, predictions_base)
-        tnr_base = fairlearn.metrics.true_negative_rate(y_test, predictions_base)
-        fpr_base = fairlearn.metrics.false_positive_rate(y_test, predictions_base)
-        fnr_base = fairlearn.metrics.false_negative_rate(y_test, predictions_base)
-        if debug:
+    if debug:
+        for model_name, model in [("base_model", fm.base_model), ("fair_model", fm)]:
+            predictions_base = model.predict(x_test)
+            precision_base = precision_score(y_test, predictions_base)
+            accuracy_base = accuracy_score(y_test, predictions_base)
+            tpr_base = fairlearn.metrics.true_positive_rate(y_test, predictions_base)
+            tnr_base = fairlearn.metrics.true_negative_rate(y_test, predictions_base)
+            fpr_base = fairlearn.metrics.false_positive_rate(y_test, predictions_base)
+            fnr_base = fairlearn.metrics.false_negative_rate(y_test, predictions_base)
             print(
                 f'{model_name}'
                 f' Precision: {precision_base},'
@@ -258,35 +225,35 @@ def main(
                 f' FPR: {fpr_base},'
                 f' FNR: {fnr_base}'
             )
-        for column in protected_classes:
-            if debug:
-                print(
-                    f"{model_name} "
-                    f"Demographic specific for: {column}"
+            for column in protected_classes:
+                if debug:
+                    print(
+                        f"{model_name} "
+                        f"Demographic specific for: {column}"
+                    )
+                    print(
+                        f"\t"
+                        f"{model_name} "
+                        f"Total {column} in train: {sum(x_train[column])} "
+                        f"or {(sum(x_train[column]) / x_train.shape[0]) * 100}%"
+                    )
+                    print(
+                        f"\t"
+                        f"{model_name} "
+                        f"Total {column} in test: {sum(x_test[column])} "
+                        f"or {(sum(x_test[column]) / x_test.shape[0]) * 100}%"
+                    )
+                eod_base = fairlearn.metrics.equalized_odds_difference(
+                    y_test,
+                    predictions_base,
+                    sensitive_features=x_test[column]
                 )
-                print(
-                    f"\t"
-                    f"{model_name} "
-                    f"Total {column} in train: {sum(x_train[column])} "
-                    f"or {(sum(x_train[column]) / x_train.shape[0]) * 100}%"
-                )
-                print(
-                    f"\t"
-                    f"{model_name} "
-                    f"Total {column} in test: {sum(x_test[column])} "
-                    f"or {(sum(x_test[column]) / x_test.shape[0]) * 100}%"
-                )
-            eod_base = fairlearn.metrics.equalized_odds_difference(
-                y_test,
-                predictions_base,
-                sensitive_features=x_test[column]
-            )
-            if debug:
-                print(
-                    f"\t"
-                    f"{model_name} "
-                    f"equal odds difference for group {column}: {eod_base}"
-                )
+                if debug:
+                    print(
+                        f"\t"
+                        f"{model_name} "
+                        f"equal odds difference for group {column}: {eod_base}"
+                    )
     return fm
 
 
@@ -318,7 +285,7 @@ if __name__ == '__main__':
         help="Comma-separated list of reference classes."
     )
     parser.add_argument(
-        "--binary-outcome-column",
+        "--binary-outcome-col",
         required=True,
         type=str,
         help="Column containing binary outcome data on patient"
@@ -334,7 +301,7 @@ if __name__ == '__main__':
         action="store_true"
     )
     parser.add_argument(
-        "--sample-weights-column",
+        "--sample-weights-col",
         help="Sample weights column. Note: specifying use-pos-weights will cause this to be ignored.",
         type=str,
         default=None
@@ -360,37 +327,23 @@ if __name__ == '__main__':
         help="Seed for initializing the random state.")
     args = parser.parse_args()
 
-    if args.do_demo:
-        protected_classes = [
-            'race_AfricanAmerican',
-            'race_Asian',
-            'race_Hispanic',
-            'gender_Female',
-        ]
-        reference_classes = [
-            "gender_Male",
-            "race_Caucasian"
-        ]
-        args.input_filename = os.path.join(os.path.dirname(__file__), "demo/diabetes.csv")
-        args.binary_outcome_column = "readmitted"
-        args.use_pos_weights = True
-    else:
-        protected_classes = args.protected_classes.strip().split(',')
-        reference_classes = args.reference_classes.strip().split(',') if args.reference_classes is not None else None
+    protected_classes = args.protected_classes.strip().split(',')
+    reference_classes = args.reference_classes.strip().split(',') if args.reference_classes is not None else None
 
     if args.debug:
         logging.basicConfig(level="DEBUG")
 
     main(
-        input_filename=args.input_filen,
+        input_filename=args.input_file,
         test_filename=args.test_file,
         protected_classes=protected_classes,
         reference_classes=reference_classes,
-        binary_outcome_column=args.binary_outcome_column,
+        binary_outcome_column=args.binary_outcome_col,
         train_test_split_percent=args.train_test_split,
         random_state=args.random_state,
         use_pos_weights=args.use_pos_weights,
         do_hyperparameter_optimization=args.do_hyperparameter_optimization,
         debug=args.debug,
-        pos_outcome_indicator=args.pos_outcome_indicator
+        pos_outcome_indicator=args.pos_outcome_indicator,
+        sample_weights_col=args.sample_weights_col
     )
