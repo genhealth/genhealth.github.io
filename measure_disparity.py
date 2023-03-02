@@ -190,14 +190,15 @@ def display_metrics(
     formatted = format_metrics(metrics)
     extra_display_cols_names = [] if not extra_display_cols else [col for col, _ in extra_display_cols]
     extra_display_cols_vals = [] if not extra_display_cols else [val for _, val in extra_display_cols]
-    print("Model-level metrics:")
-    for k, v in sorted(list(chain(zip(extra_display_cols_names, extra_display_cols_vals), formatted.items()))):
-        if k.endswith('_class_metrics'):
-            continue
-        print(f'{k}: {v}')
+    if debug:
+        print("Model-level metrics:")
+        for k, v in sorted(list(chain(zip(extra_display_cols_names, extra_display_cols_vals), formatted.items()))):
+            if k.endswith('_class_metrics'):
+                continue
+            print(f'{k}: {v}')
     columns = list()
     rows = list()
-    print("Demographic metrics:")
+
     for class_type in ('protected', 'reference'):
         k_ = f'{class_type}_class_metrics'
         if k_ not in metrics:
@@ -216,6 +217,8 @@ def display_metrics(
                     + [class_type, protected_class]
                     + [v for k, v in protected_metrics.items()])
             )
+
+    print('')
     print(
         tabulate(
             rows,

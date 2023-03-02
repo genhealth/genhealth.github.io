@@ -1,7 +1,6 @@
 import argparse
 import itertools
 import logging
-import os
 
 import fairlearn.metrics
 import numpy as np
@@ -13,6 +12,18 @@ from xgboost import XGBClassifier
 from xgboost._typing import ArrayLike
 
 from measure_disparity import measure
+
+
+class Bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
 
 
 class PredictBeforeFitError(Exception):
@@ -186,6 +197,9 @@ def main(
         fair_predictions=fm.predict(x_test),
         base_predictions=fm.base_model.predict(x_test)
     )
+
+    print('')
+    print(Bcolors.WARNING + 'Base model bias metric prior to mitigation strategy' + Bcolors.ENDC)
     measure(
         inp=measure_df,
         binary_outcome_column=binary_outcome_column,
@@ -196,6 +210,8 @@ def main(
         extra_display_cols=[('model', 'base')],
         y_pred_column='base_predictions'
     )
+
+    print(Bcolors.OKGREEN + 'Bias-optimized model metrics' + Bcolors.ENDC)
     measure(
         inp=measure_df,
         binary_outcome_column=binary_outcome_column,
