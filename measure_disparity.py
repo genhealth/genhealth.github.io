@@ -34,16 +34,17 @@ class NpEncoder(json.JSONEncoder):
         return super(NpEncoder, self)
 
 
-def main(
+def measure(
         inp: Union[str, pd.DataFrame],
         binary_outcome_column: str,
         protected_classes: list[str],
         reference_classes: list[str] = None,
         probability_column: str = None,
+        y_pred_column: str = None,
         sample_weights_column: str = None,
         pos_outcome_indicator: str = '1',
         debug: bool = False,
-        extra_display_cols: list[tuple[str, str]] = None
+        extra_display_cols: list[tuple[str, str]] = None,
 ):
     input_df: pd.DataFrame = (pd.read_csv(inp, dtype={binary_outcome_column: str})
                               if isinstance(inp, str) else inp)
@@ -51,15 +52,19 @@ def main(
         input_df[binary_outcome_column] = input_df[binary_outcome_column].astype(str)
     sample_weights = None if sample_weights_column is None else input_df[sample_weights_column]
     y_true = input_df[binary_outcome_column] == pos_outcome_indicator.strip()
-    y_prob = input_df[probability_column]
+    best_threshold = None
+    if y_pred_column is None:
+        y_prob = input_df[probability_column]
 
-    fprs_from_roc, tprs_from_roc, thresholds = roc_curve(y_true, y_prob, sample_weight=sample_weights)
-    distances = np.sqrt((1 - tprs_from_roc) ** 2 + fprs_from_roc ** 2)
+        fprs_from_roc, tprs_from_roc, thresholds = roc_curve(y_true, y_prob, sample_weight=sample_weights)
+        distances = np.sqrt((1 - tprs_from_roc) ** 2 + fprs_from_roc ** 2)
 
-    best_idx = np.argmin(distances)
-    best_threshold = thresholds[best_idx]
+        best_idx = np.argmin(distances)
+        best_threshold = thresholds[best_idx]
 
-    y_pred = input_df[probability_column] >= best_threshold
+        y_pred = input_df[probability_column] >= best_threshold
+    else:
+        y_pred = input_df[y_pred_column]
     tn, fp, fn, tp = confusion_matrix(y_true, y_pred, sample_weight=sample_weights).ravel()
     sensitive_features = input_df[protected_classes]
     metrics = dict(
@@ -111,8 +116,12 @@ def main(
                         if reference_classes else input_df)
         y_true_protected = (protected_df[binary_outcome_column] == pos_outcome_indicator.strip()
                             if reference_classes else y_true)
-        y_pred_protected = ((protected_df[probability_column] >= best_threshold)
-                            if reference_classes else y_pred)
+        if best_threshold is not None:
+            y_pred_protected = ((protected_df[probability_column] >= best_threshold)
+                                if reference_classes else y_pred)
+        else:
+            y_pred_protected = ((protected_df[y_pred_column])
+                                if reference_classes else y_pred)
         protected_class_metrics = calculate_class_metrics(y_true_protected, y_pred_protected, protected_df,
                                                           class_)
         metrics[k_][class_] = protected_class_metrics
@@ -163,7 +172,12 @@ def format_metrics(metrics: dict) -> dict:
     return formatted
 
 
-def display_metrics(metrics: dict, debug=False, tablefmt="github", extra_display_cols: list[tuple[str, str]] = None):
+def display_metrics(
+        metrics: dict,
+        debug=False,
+        tablefmt="github",
+        extra_display_cols: list[tuple[str, str]] = None
+):
     """
     By default, print to stdout. Optionally save output to file.
 
@@ -173,15 +187,21 @@ def display_metrics(metrics: dict, debug=False, tablefmt="github", extra_display
     :param output: If not provided, print to stdout. Otherwise, save to file specified.
     :return:
     """
+    formatted = format_metrics(metrics)
+    extra_display_cols_names = [] if not extra_display_cols else [col for col, _ in extra_display_cols]
+    extra_display_cols_vals = [] if not extra_display_cols else [val for _, val in extra_display_cols]
+    print("Model-level metrics:")
+    for k, v in sorted(list(chain(zip(extra_display_cols_names, extra_display_cols_vals), formatted.items()))):
+        if k.endswith('_class_metrics'):
+            continue
+        print(f'{k}: {v}')
     columns = list()
     rows = list()
+    print("Demographic metrics:")
     for class_type in ('protected', 'reference'):
         k_ = f'{class_type}_class_metrics'
         if k_ not in metrics:
             continue
-        formatted = format_metrics(metrics)
-        extra_display_cols_names = [] if not extra_display_cols else [col for col, _ in extra_display_cols]
-        extra_display_cols_vals = [] if not extra_display_cols else [val for _, val in extra_display_cols]
         if not columns:
             columns = (
                     extra_display_cols_names
@@ -196,22 +216,25 @@ def display_metrics(metrics: dict, debug=False, tablefmt="github", extra_display
                     + [class_type, protected_class]
                     + [v for k, v in protected_metrics.items()])
             )
-            print(
-                tabulate(
-                    rows,
-                    headers=columns,
-                    tablefmt=tablefmt
-                    # showindex=formatted[f'{class_type}_class_metrics'].keys()
-                )
-            )
+    print(
+        tabulate(
+            rows,
+            headers=columns,
+            tablefmt=tablefmt
+        )
+    )
+    print("\n\n")
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--input-file", required=True, type=str, help="Path to input file")
-    parser.add_argument("--protected-classes", required=True, type=str, help="Comma-separated list of protected classes.")
-    parser.add_argument("--reference-classes", required=True, type=str, help="Comma-separated list of reference classes.")
-    parser.add_argument("--binary-outcome-col", required=True, type=str, help="Column containing binary outcome data on patient.")
+    parser.add_argument("--protected-classes", required=True, type=str,
+                        help="Comma-separated list of protected classes.")
+    parser.add_argument("--reference-classes", required=True, type=str,
+                        help="Comma-separated list of reference classes.")
+    parser.add_argument("--binary-outcome-col", required=True, type=str,
+                        help="Column containing binary outcome data on patient.")
     parser.add_argument("--probability-col", required=True, type=str, help="Probability outcome column.")
     parser.add_argument("--sample-weights-col", required=True, type=str, help="Column sample weights.")
     parser.add_argument("--pos-outcome-indicator", default="1", type=str, help="Binary outcome column positive value.")
@@ -224,7 +247,7 @@ if __name__ == '__main__':
     if args.debug:
         logging.basicConfig(level="DEBUG")
 
-    main(
+    measure(
         inp=args.input_file,
         binary_outcome_column=args.binary_outcome_col,
         protected_classes=protected_classes,

@@ -1,22 +1,22 @@
-import os
-import logging
 import argparse
 import itertools
-from dataclasses import dataclass
+import logging
+import os
 
+import fairlearn.metrics
 import numpy as np
 import pandas as pd
-import fairlearn.metrics
-from xgboost import XGBClassifier
-from xgboost._typing import ArrayLike
-from measure_disparity.measure_disparity import main as measure
 from fairlearn.postprocessing import ThresholdOptimizer
 from sklearn.metrics import precision_score, accuracy_score
 from sklearn.model_selection import train_test_split, GridSearchCV
+from xgboost import XGBClassifier
+from xgboost._typing import ArrayLike
+
+from measure_disparity import measure
 
 
 class PredictBeforeFitError(Exception):
-    def __init__(self, *args):  
+    def __init__(self, *args):
         super().__init__(self, *args)
 
 
@@ -136,19 +136,19 @@ class FairModel(object):
         fnr = fairlearn.metrics.false_negative_rate(y, predictions)
         total_rows = x.shape[0]
         total_rows_with_any_sensitive_class = sum(
-            x[sensitive_classes].any(axis='columns').apply(lambda v: 1 if v else 0)
+            x[protected_classes].any(axis='columns').apply(lambda v: 1 if v else 0)
         )
         equalized_odds_difference_any = fairlearn.metrics.equalized_odds_difference(
             y,
             predictions,
-            sensitive_features=x[sensitive_classes]
+            sensitive_features=x[protected_classes]
         )
         equal_odds_ratio_any = fairlearn.metrics.equalized_odds_ratio(
             y,
             predictions,
-            sensitive_features=x[sensitive_classes]
+            sensitive_features=x[protected_classes]
         )
-        for column in sensitive_classes:
+        for column in protected_classes:
             total = sum(x[column])
             ratio = (total / total_rows)
             equalized_odds_difference_for_class = fairlearn.metrics.equalized_odds_difference(
@@ -161,7 +161,7 @@ class FairModel(object):
 def main(
         input_filename: str,
         binary_outcome_column: str,
-        sensitive_classes: list[str],
+        protected_classes: list[str],
         sample_weights_col: str = None,
         reference_classes: list[str] = None,
         pos_outcome_indicator: str = '1',
@@ -179,7 +179,7 @@ def main(
     demap_cols = {v: k for k, v in remap_cols.items()}
     binary_outcome_column = remap_cols.get(binary_outcome_column, binary_outcome_column)
     sample_weights_col = remap_cols.get(sample_weights_col, sample_weights_col)
-    sensitive_classes = [remap_cols.get(col, col) for col in sensitive_classes]
+    protected_classes = [remap_cols.get(col, col) for col in protected_classes]
     reference_classes = [remap_cols.get(col, col) for col in reference_classes]
     input_df = input_df.rename(columns=remap_cols)
     x = input_df.drop(columns=[binary_outcome_column], axis=1)
@@ -205,7 +205,7 @@ def main(
         x_test = test_df.drop(columns=[binary_outcome_column])
         y_test = test_df[binary_outcome_column] == pos_outcome_indicator.strip()
     pos_weight = (len(y_train) / y_train.sum().item()) - 1
-    fm = FairModel(sensitive_classes)
+    fm = FairModel(protected_classes)
     fm.fit(
         x_train,
         y_train,
@@ -215,28 +215,28 @@ def main(
     )
     measure_df = pd.concat([x_test, y_test], axis=1)
     measure_df = measure_df.assign(
-        fair_predictions=fm.predict_proba_(x_test),
-        base_predictions=fm.base_model.predict_proba(x_test)[:, 1]
+        fair_predictions=fm.predict(x_test),
+        base_predictions=fm.base_model.predict(x_test)
     )
     base_measure = measure(
         inp=measure_df,
         binary_outcome_column=binary_outcome_column,
-        protected_classes=sensitive_classes,
+        protected_classes=protected_classes,
         reference_classes=reference_classes,
-        probability_column="base_predictions",
         pos_outcome_indicator="True",
         sample_weights_column=sample_weights_col,
-        extra_display_cols=[('model', 'base model')]
+        extra_display_cols=[('model', 'base')],
+        y_pred_column='base_predictions'
     )
     fair_measure = measure(
         inp=measure_df,
         binary_outcome_column=binary_outcome_column,
-        protected_classes=sensitive_classes,
+        protected_classes=protected_classes,
         reference_classes=reference_classes,
-        probability_column="fair_predictions",
         pos_outcome_indicator="True",
         sample_weights_column=sample_weights_col,
-        extra_display_cols=[('model', 'fair model')]
+        extra_display_cols=[('model', 'fair')],
+        y_pred_column='fair_predictions'
     )
     fm.compute_metrics(x, y)
 
@@ -258,7 +258,7 @@ def main(
                 f' FPR: {fpr_base},'
                 f' FNR: {fnr_base}'
             )
-        for column in sensitive_classes:
+        for column in protected_classes:
             if debug:
                 print(
                     f"{model_name} "
@@ -294,11 +294,27 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--do-demo", action="store_true",
                         help="Perform demo. Performs optimization on embedded diabetes file.")
-    parser.add_argument("--input_filename", required=True, type=str, help="Input filename")
-    parser.add_argument("--test_filename", type=str, help="Test input filename", default=None)
-    parser.add_argument("--sensitive-classes", required=True, type=str, help="Comma-separated list of sensitive classes.")
-    parser.add_argument("--reference-classes", required=True, type=str, help="Comma-separated list of reference classes.")
-    parser.add_argument("--binary-outcome-column", required=True, type=str, help="Column containing binary outcome data on patient")
+    parser.add_argument("--input-filename", required=True, type=str, help="Input filename")
+    parser.add_argument("--test-filename", type=str, help="Test input filename", default=None)
+    parser.add_argument(
+        "--protected-classes",
+        required=True,
+        type=str,
+        help="Comma-separated list of sensitive classes."
+    )
+    parser.add_argument(
+        "--reference-classes",
+        required=True,
+        type=str,
+        help="Comma-separated list of reference classes."
+    )
+    parser.add_argument(
+        "--binary-outcome-column",
+        required=True,
+        type=str,
+        help="Column containing binary outcome data on patient"
+    )
+    parser.add_argument("--pos-outcome-indicator", default="1", type=str, help="Binary outcome column positive value.")
     parser.add_argument(
         "--use-pos-weights",
         help="Use autogenerated positive weights. Note: This will ignore the sample-weights if those are specified.",
@@ -322,7 +338,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     if args.do_demo:
-        sensitive_classes = [
+        protected_classes = [
             'race_AfricanAmerican',
             'race_Asian',
             'race_Hispanic',
@@ -336,7 +352,7 @@ if __name__ == '__main__':
         args.binary_outcome_column = "readmitted"
         args.use_pos_weights = True
     else:
-        sensitive_classes = args.sensitive_classes.strip().split(',')
+        protected_classes = args.protected_classes.strip().split(',')
         reference_classes = args.reference_classes.strip().split(',') if args.reference_classes is not None else None
 
     if args.debug:
@@ -345,12 +361,13 @@ if __name__ == '__main__':
     main(
         input_filename=args.input_filename,
         test_filename=args.test_filename,
-        sensitive_classes=sensitive_classes,
+        protected_classes=protected_classes,
         reference_classes=reference_classes,
         binary_outcome_column=args.binary_outcome_column,
         train_test_split_percent=args.train_test_split,
         random_state=args.random_state,
         use_pos_weights=args.use_pos_weights,
         do_hyperparameter_optimization=args.do_hyperparameter_optimization,
-        debug=args.debug
+        debug=args.debug,
+        pos_outcome_indicator=args.pos_outcome_indicator
     )
