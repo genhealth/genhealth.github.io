@@ -8,15 +8,13 @@ GenHealth's submission to the [NIH NCAT's Bias Detection Tools in HealthCare Cha
 ### Folder Structure
 The files in the repo are organized as follows:
 ```/
-├── js/                    # javascript for html landing page 
-├── css/                   # css files for html landing page
-├── ipynb/                 # jupyter notebook version of measure_disparity script
-├── assets/img             # images for the team submission landing page
-├── demo                   # demo folder containing demo CSV file from compass juvenile felony recidivism
-├── measure_disparity.py   # python script for measuring disparity
-├── mitigate_disparity.py  # python script for measuring disparity
-├── environment.yml        # conda environment file
-├── README.md              # this file
+├── js/                                      # javascript for html landing page 
+├── css/                                     # css files for html landing page
+├── assets/img                               # images for the team submission landing page
+├── demo                                     # demo folder containing demo CSV file
+├── measure_disparity/measure_disparity.py   # python script for measuring disparity
+├── mitigate_disparity.py                    # python script for measuring disparity
+├── README.md                                # this file
 ```
 
 ## Setup
@@ -37,7 +35,7 @@ pip install -r requirements.txt
 The `measure_disparity.py` script by default expects a CSV file as input. For convenience, we have included a demo CSV file
 which includes diabetes admission and treatment information in the `demo` directory:
 
-If custom columns are used, the script can be run with the following (optional) command line arguments:
+The script can be run with the following command line arguments:
 
 | Name                  | Description                                                                          | Expected Values                        | Example                                        |
 |-----------------------|--------------------------------------------------------------------------------------|----------------------------------------|------------------------------------------------|
@@ -53,12 +51,13 @@ If custom columns are used, the script can be run with the following (optional) 
 
 Example:
 ```
-python measure_disparity.py \
-    --prediction-col=predict_probability \
-    --binary-outcome-col=is_recid \
-    --protected-classes=race_African_American,race_Asian,race_Hispanic,race_Native_American,sex_Female \
+python mitigate_disparity.py \
+    --binary-outcome-col=readmitted \
+    --protected-classes=race_AfricanAmerican,race_Asian,race_Hispanic,gender_Female 
     --reference-classes=sex_Male,race_Caucasian \
-    --input-file=demo/compas_data_with_predict_probability.csv
+    --input-file=demo/diabetes_with_predict_probability.csv \
+    --pos-outcome-indicator=1 \
+    --reference-classes=race_Caucasian,gender_Male
 ```
 
 ### Mitigate Disparity
