@@ -35,6 +35,10 @@ class PredictBeforeFitError(Exception):
 class FairModel(object):
     base_model: XGBClassifier
     optimizer: ThresholdOptimizer = None
+    base_demographic_meta: pd.DataFrame = None
+    base_model_data: dict = None
+    fair_demographic_meta: pd.DataFrame = None
+    fair_model_data: dict = None
 
     def __init__(
             self,
@@ -208,7 +212,7 @@ def mitigate(
     if not suppress_output:
         print('')
         print(Bcolors.WARNING + 'Base model bias metric prior to mitigation strategy' + Bcolors.ENDC)
-    base_demo, base_meta = measure(
+    base_demographic_meta, base_model_data = measure(
         inp=measure_df,
         binary_outcome_column=binary_outcome_column,
         protected_classes=protected_classes,
@@ -222,7 +226,7 @@ def mitigate(
 
     if not suppress_output:
         print(Bcolors.OKGREEN + 'Bias-optimized model metrics' + Bcolors.ENDC)
-    fair_demo, fair_model = measure(
+    fair_demographic_meta, fair_model_data = measure(
         inp=measure_df,
         binary_outcome_column=binary_outcome_column,
         protected_classes=protected_classes,
@@ -233,8 +237,10 @@ def mitigate(
         y_pred_column='fair_predictions',
         suppress_output=suppress_output
     )
-    def plot():
-        pass
+    fm.base_demographic_meta = base_demographic_meta
+    fm.base_model_data = base_model_data
+    fm.fair_demographic_meta = fair_demographic_meta
+    fm.fair_model_data = fair_model_data
 
     if debug:
         for model_name, model in [("base_model", fm.base_model), ("fair_model", fm)]:
