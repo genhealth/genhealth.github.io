@@ -88,9 +88,9 @@ To run the demo script with a custom file, use the following command:
 python mitigate_disparity.py \
     --binary-outcome-col=readmitted \
     --protected-classes=race_AfricanAmerican,race_Asian,race_Hispanic,gender_Female \
-    --reference-classes=sex_Male,race_Caucasian \
     --input-file=demo/diabetes.csv \
-    --pos-outcome-indicator=1 
+    --pos-outcome-indicator=1 \
+    --reference-classes=race_Caucasian,gender_Male
 ```
 
 Expected output:
